@@ -74,8 +74,17 @@
   <canvas id="gameCanvas"></canvas>
 
   <script>
-    const SERVER_URL = "https://my-online-snake-game.onrender.com";
-    const socket = io(SERVER_URL);
+    // Server URL
+const SERVER_URL = "https://my-online-snake-game.onrender.com";
+
+// Auto reconnect & transport fallback configuration
+const socket = io(SERVER_URL, {
+  transports: ['websocket', 'polling'],
+  reconnection: true,
+  reconnectionAttempts: 10,
+  reconnectionDelay: 2000
+});
+
 
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
