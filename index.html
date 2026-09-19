@@ -2,100 +2,259 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>Cyberpunk Snake Game</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Snake.io Multiplayer</title>
   <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
-    body { background: #0d0e15; color: #fff; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; overflow: hidden; }
-    #login-screen { position: absolute; z-index: 10; background: #0f111a; width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 15px; }
-    #login-screen h1 { color: #00ffcc; text-shadow: 0 0 10px #00ffcc; }
-    #login-screen input { padding: 12px 20px; border-radius: 25px; border: 2px solid #00ffcc; background: transparent; color: #fff; text-align: center; outline: none; }
-    #login-screen button { padding: 12px 30px; border-radius: 25px; border: none; background: #00ffcc; font-weight: bold; cursor: pointer; }
-    canvas { background: #141622; border: 2px solid #00ffcc; border-radius: 8px; max-width: 95vw; max-height: 50vh; }
-    #leaderboard { position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.7); padding: 8px; border-radius: 6px; font-size: 0.8rem; }
-    .controls { display: grid; grid-template-columns: repeat(3, 60px); grid-template-rows: repeat(3, 60px); gap: 10px; margin-top: 15px; }
-    .btn { background: #1f2338; border: 2px solid #00ffcc; color: #00ffcc; border-radius: 50%; font-size: 1.5rem; display: flex; justify-content: center; align-items: center; }
-    .btn-up { grid-column: 2; grid-row: 1; }
-    .btn-left { grid-column: 1; grid-row: 2; }
-    .btn-right { grid-column: 3; grid-row: 2; }
-    .btn-down { grid-column: 2; grid-row: 3; }
+    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; touch-action: none; }
+    body, html { width: 100%; height: 100%; overflow: hidden; background: #0b0e14; font-family: 'Segoe UI', sans-serif; }
+    
+    #login-screen {
+      position: absolute; z-index: 100; width: 100%; height: 100%;
+      background: linear-gradient(135deg, #0f111e, #1a1c2e);
+      display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 20px;
+    }
+    #login-screen h1 { font-size: 2.8rem; color: #00ffcc; text-shadow: 0 0 15px #00ffcc; letter-spacing: 2px; }
+    #login-screen input {
+      padding: 15px 25px; font-size: 1.2rem; border-radius: 30px; border: 2px solid #00ffcc;
+      background: rgba(255,255,255,0.05); color: #fff; text-align: center; outline: none; width: 260px;
+    }
+    #login-screen button {
+      padding: 15px 40px; font-size: 1.2rem; font-weight: bold; border-radius: 30px; border: none;
+      background: #00ffcc; color: #000; box-shadow: 0 0 20px #00ffcc; cursor: pointer;
+    }
+    #status-text { color: #ffcc00; font-size: 0.9rem; }
+
+    canvas { display: block; width: 100vw; height: 100vh; }
+
+    #hud {
+      position: absolute; top: 15px; left: 15px; z-index: 10;
+      color: #fff; font-size: 1.2rem; font-weight: bold; text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+    }
+    #leaderboard {
+      position: absolute; top: 15px; right: 15px; z-index: 10;
+      background: rgba(15, 17, 30, 0.75); border: 1px solid rgba(0,255,204,0.3);
+      padding: 12px; border-radius: 12px; color: #fff; min-width: 140px; backdrop-filter: blur(5px);
+    }
+    #leaderboard h3 { color: #00ffcc; font-size: 0.9rem; margin-bottom: 6px; border-bottom: 1px solid #00ffcc; padding-bottom: 4px; }
+    #leaderboard div { font-size: 0.8rem; margin-top: 3px; display: flex; justify-content: space-between; }
+
+    /* Touch Control Area */
+    #touch-zone {
+      position: absolute; bottom: 30px; left: 30px; width: 130px; height: 130px;
+      border: 2px dashed rgba(0, 255, 204, 0.4); border-radius: 50%; z-index: 20;
+      display: flex; justify-content: center; align-items: center;
+    }
+    #joystick-knob {
+      width: 50px; height: 50px; background: rgba(0, 255, 204, 0.6);
+      border-radius: 50%; box-shadow: 0 0 10px #00ffcc; pointer-events: none;
+    }
   </style>
 </head>
 <body>
 
   <div id="login-screen">
-    <h1>ONLINE SNAKE 🐍</h1>
-    <input type="text" id="username" placeholder="Apna Name Likhein" maxlength="10">
-    <button onclick="startGame()">PLAY GAME</button>
+    <h1>SNAKE.IO 🐍</h1>
+    <input type="text" id="username" placeholder="Enter Snake Name" maxlength="12">
+    <button onclick="startGame()">PLAY ONLINE</button>
+    <div id="status-text">Server Status: Connecting...</div>
   </div>
 
-  <div style="position: relative;">
-    <canvas id="gameCanvas" width="800" height="800"></canvas>
-    <div id="leaderboard">
-      <h4 style="color:#00ffcc;">SCORES</h4>
-      <div id="player-list"></div>
-    </div>
+  <div id="hud">Score: <span id="my-score">0</span></div>
+
+  <div id="leaderboard">
+    <h3>TOP SNAKES</h3>
+    <div id="player-list"></div>
   </div>
 
-  <!-- Touch Controls -->
-  <div class="controls">
-    <div class="btn btn-up" onclick="sendDir('UP')">▲</div>
-    <div class="btn btn-left" onclick="sendDir('LEFT')">◄</div>
-    <div class="btn btn-right" onclick="sendDir('RIGHT')">►</div>
-    <div class="btn btn-down" onclick="sendDir('DOWN')">▼</div>
+  <div id="touch-zone">
+    <div id="joystick-knob"></div>
   </div>
+
+  <canvas id="gameCanvas"></canvas>
 
   <script>
-    // APNA RENDER URL YAHAN DAALEIN:
-    const SERVER_URL = "https://my-online-snake-game.onrender.com/"; 
-    
+    const SERVER_URL = "https://my-online-snake-game.onrender.com";
     const socket = io(SERVER_URL);
+
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
+    const statusText = document.getElementById('status-text');
+
     let myId = null;
+    let mapSize = 3000;
+    let currentGameState = null;
+
+    // Resize Canvas to Full Screen
+    function resizeCanvas() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    socket.on('connect', () => {
+      statusText.innerText = "Server Status: Connected Ready!";
+      statusText.style.color = "#00ff00";
+    });
+
+    socket.on('disconnect', () => {
+      statusText.innerText = "Server Sleeping... Waiting for connection";
+      statusText.style.color = "#ffcc00";
+    });
 
     function startGame() {
-      const name = document.getElementById('username').value;
-      if (!name) return alert("Naam likhna zaroori hai!");
+      const name = document.getElementById('username').value || "Snake";
       document.getElementById('login-screen').style.display = 'none';
       socket.emit('joinGame', name);
     }
 
-    socket.on('init', (data) => { myId = data.id; });
-
-    socket.on('gameState', (state) => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      // Draw Food
-      if (state.food) {
-        ctx.fillStyle = state.food.color;
-        ctx.fillRect(state.food.x, state.food.y, 18, 18);
-      }
-
-      // Draw Snakes
-      let leaderData = [];
-      for (let id in state.players) {
-        let p = state.players[id];
-        leaderData.push({ name: p.name, score: p.score });
-
-        ctx.fillStyle = p.color;
-        p.tail.forEach(seg => ctx.fillRect(seg.x, seg.y, 18, 18));
-        ctx.fillRect(p.x, p.y, 18, 18);
-
-        ctx.fillStyle = '#fff';
-        ctx.font = '12px sans-serif';
-        ctx.fillText(p.name, p.x - 5, p.y - 5);
-      }
-
-      // Update Leaderboard
-      document.getElementById('player-list').innerHTML = leaderData
-        .sort((a,b) => b.score - a.score)
-        .slice(0, 5)
-        .map(p => `<div>${p.name}: ${p.score}</div>`).join('');
+    socket.on('init', (data) => {
+      myId = data.id;
+      mapSize = data.mapSize;
     });
 
-    function sendDir(dir) { socket.emit('direction', dir); }
+    socket.on('gameState', (state) => {
+      currentGameState = state;
+    });
+
+    // Mobile Touch Joystick Logic (Direct 360 Degree Drag Control)
+    const touchZone = document.getElementById('touch-zone');
+    const knob = document.getElementById('joystick-knob');
+    let touchActive = false;
+
+    function handleTouch(e) {
+      const rect = touchZone.getBoundingClientRect();
+      const centerX = rect.left + rect.width / 2;
+      const centerY = rect.top + rect.height / 2;
+
+      const touch = e.touches[0];
+      const dx = touch.clientX - centerX;
+      const dy = touch.clientY - centerY;
+
+      const angle = Math.atan2(dy, dx);
+      socket.emit('inputAngle', angle);
+
+      // Knob Visual Distance
+      const distance = Math.min(40, Math.hypot(dx, dy));
+      knob.style.transform = `translate(${Math.cos(angle) * distance}px, ${Math.sin(angle) * distance}px)`;
+    }
+
+    window.addEventListener('touchstart', (e) => { touchActive = true; handleTouch(e); });
+    window.addEventListener('touchmove', (e) => { if(touchActive) handleTouch(e); });
+    window.addEventListener('touchend', () => {
+      touchActive = false;
+      knob.style.transform = `translate(0px, 0px)`;
+    });
+
+    // Render Loop (Camera Follows Player Head)
+    function render() {
+      requestAnimationFrame(render);
+      if (!currentGameState || !myId) return;
+
+      const myPlayer = currentGameState.players[myId];
+      
+      // Camera Offset calculation (Player head in screen center)
+      let camX = myPlayer ? myPlayer.x : mapSize / 2;
+      let camY = myPlayer ? myPlayer.y : mapSize / 2;
+
+      let offsetX = canvas.width / 2 - camX;
+      let offsetY = canvas.height / 2 - camY;
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      ctx.save();
+      ctx.translate(offsetX, offsetY);
+
+      // Draw Grid Map
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.04)';
+      ctx.lineWidth = 2;
+      for (let x = 0; x <= mapSize; x += 60) {
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, mapSize); ctx.stroke();
+      }
+      for (let y = 0; y <= mapSize; y += 60) {
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(mapSize, y); ctx.stroke();
+      }
+
+      // Draw Map Boundary
+      ctx.strokeStyle = '#ff0055';
+      ctx.lineWidth = 8;
+      ctx.strokeRect(0, 0, mapSize, mapSize);
+
+      // Draw Glowing Orbs Food
+      if (currentGameState.foods) {
+        currentGameState.foods.forEach(f => {
+          ctx.beginPath();
+          ctx.arc(f.x, f.y, f.size, 0, Math.PI * 2);
+          ctx.fillStyle = f.color;
+          ctx.shadowColor = f.color;
+          ctx.shadowBlur = 8;
+          ctx.fill();
+          ctx.shadowBlur = 0;
+        });
+      }
+
+      // Draw Snakes with Eyes and Smooth Curves
+      let leaderList = [];
+      for (let id in currentGameState.players) {
+        let p = currentGameState.players[id];
+        leaderList.push({ name: p.name, score: p.score });
+
+        if (id === myId) {
+          document.getElementById('my-score').innerText = p.score;
+        }
+
+        // Draw Body Segments (Back to Front)
+        for (let i = p.body.length - 1; i >= 0; i--) {
+          let seg = p.body[i];
+          ctx.beginPath();
+          ctx.arc(seg.x, seg.y, p.radius, 0, Math.PI * 2);
+          ctx.fillStyle = p.color;
+          ctx.fill();
+        }
+
+        // Draw Snake Head Eyes
+        if (p.body.length > 0) {
+          let head = p.body[0];
+          let eyeOffsetAngle = 0.5;
+          let eyeDist = p.radius * 0.6;
+
+          // Left Eye & Right Eye
+          [p.angle - eyeOffsetAngle, p.angle + eyeOffsetAngle].forEach(a => {
+            let eyeX = head.x + Math.cos(a) * eyeDist;
+            let eyeY = head.y + Math.sin(a) * eyeDist;
+
+            ctx.beginPath();
+            ctx.arc(eyeX, eyeY, p.radius * 0.35, 0, Math.PI * 2);
+            ctx.fillStyle = '#ffffff';
+            ctx.fill();
+
+            // Black Pupil
+            ctx.beginPath();
+            ctx.arc(eyeX + Math.cos(p.angle) * 2, eyeY + Math.sin(p.angle) * 2, p.radius * 0.18, 0, Math.PI * 2);
+            ctx.fillStyle = '#000000';
+            ctx.fill();
+          });
+
+          // Player Name Tag
+          ctx.fillStyle = '#ffffff';
+          ctx.font = 'bold 12px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText(p.name, head.x, head.y - p.radius - 8);
+        }
+      }
+
+      ctx.restore();
+
+      // Update Leaderboard HUD
+      leaderList.sort((a,b) => b.score - a.score);
+      document.getElementById('player-list').innerHTML = leaderList
+        .slice(0, 5)
+        .map((p, index) => `<div><span>${index+1}. ${p.name}</span><b>${p.score}</b></div>`)
+        .join('');
+    }
+
+    render();
   </script>
 </body>
 </html>
